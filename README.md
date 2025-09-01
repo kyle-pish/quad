@@ -1,1 +1,1 @@
-# social_media_project
+# Social Media Project

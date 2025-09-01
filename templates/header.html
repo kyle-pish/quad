@@ -1,0 +1,94 @@
+<style>
+  header {
+    padding: 1em 0;
+    box-shadow: 0 0 1em rgba(0, 0, 0, 0.3);
+  }
+
+  header a {
+    color: #fff;
+    padding: .5em 1em;
+    border-radius:10em;
+  }
+
+  header a:hover {
+    background: #fff;
+  }
+
+  #logo {
+    background: rgba(255, 255, 255, .1);
+  }
+
+  #logo:hover {
+    background: #fff;
+  }
+
+  #logo span {
+    font-size: 1.4em;
+    font-weight: bold;
+  }
+
+  #profile-icon {
+      font-family: "Nabla";
+      font-size: 1.7em;
+      width: 2em;
+      height: 2em;
+      line-height: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #ffffff45;
+      text-shadow: 0 -5px 5px rgba(0, 0, 0, .3);
+      font-palette: --altfour;
+  }
+
+  @font-palette-values --altfour {
+    font-family: Nabla;
+    override-colors:
+      0 #000000,
+      1 #000000,
+      2 #999999,
+      3 #999999,
+      4 #C1C1C1,
+      5 #C1C1C1,
+      6 #000000,
+      7 #C1C1C1,
+      8 #FFFFFF,
+      9 #FFFFFF;
+  }
+</style>
+
+<header>
+  <div class="container flex justify-between items-center">
+    <a id="logo" href="/home"  class="flex gap-3 items-center">
+      <img src="/static/imgs/logo.png" height="50" width="50" alt="">
+      <span class="text-xl font-bold">The Social</span>
+    </a>
+      <nav class="flex gap-7 items-center">
+          <a href="/search">Search</a>
+          <!-- <a href="/friends">Friends</a> -->
+          <a href="/makepost">Posts</a>
+          <div style="position:relative;">
+            <button id="profile-icon" style="border:none;background:none;cursor:pointer;">
+              <span>{{ session['username'][0].upper() }}</span>
+            </button>
+            <div id="profile-menu" style="display:none;position:absolute;right:0;top:2.5em;background:#fff;color:#333;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15);min-width:140px;z-index:100;">
+              <a href="{{ url_for('profile', username=session['username']) }}" style="display:block;padding:10px 16px;text-decoration:none;color:#333;">View Profile</a>
+              <a href="{{ url_for('logout') }}" style="display:block;padding:10px 16px;text-decoration:none;color:#333;">Sign Out</a>
+            </div>
+          </div>
+          <script>
+            const profileIcon = document.getElementById('profile-icon');
+            const profileMenu = document.getElementById('profile-menu');
+            profileIcon.addEventListener('click', function(e) {
+              e.stopPropagation();
+              profileMenu.style.display = profileMenu.style.display === 'block' ? 'none' : 'block';
+            });
+            document.addEventListener('click', function(e) {
+              if (profileMenu.style.display === 'block') {
+                profileMenu.style.display = 'none';
+              }
+            });
+          </script>
+      </nav>
+  </div>
+</header>
