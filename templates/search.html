@@ -22,16 +22,20 @@
     
                     <!-- Display search results or user not found message -->
                     {% if user_data %}
-                        <form action="/addfriend" method="POST">
-                            <h2>Search Results</h2>
-                            <p><strong>Name:</strong> {{ user_data[1] }}</p>
-                            <p><strong>Username:</strong> {{ user_data[2] }}</p>
-                            <p><strong>Age:</strong> {{ user_data[4] }}</p>
-                            <!-- Add more profile information as needed -->
-                            <!-- Hidden element to store the username for the form -->
-                            <input type="hidden" name="username" value="{{ user_data[2]}}">
-                            <input type="submit" value="Add Friend">
-                        </form>
+                        <h2>Search Results</h2>
+                        <p><strong>Name:</strong> {{ user_data[1] }}</p>
+                        <p><strong>Username:</strong> {{ user_data[2] }}</p>
+                        <p><strong>Age:</strong> {{ user_data[4] }}</p>
+                        {% if friend_status == 'pending' %}
+                            <button type="button" id="friend-btn" style="background:#ccc;color:#333;border:none;padding:0.5em 1.5em;border-radius:6px;cursor:not-allowed;display:inline-block;margin-top:1em;">Pending</button>
+                        {% elif friend_status == 'friends' %}
+                            <button type="button" id="friend-btn" style="background:#28a745;color:#fff;border:none;padding:0.5em 1.5em;border-radius:6px;display:inline-block;margin-top:1em;">Friends</button>
+                        {% else %}
+                            <form id="add-friend-form" action="/addfriend" method="POST" style="display:inline;">
+                                <input type="hidden" name="username" value="{{ user_data[2]}}">
+                                <input type="submit" id="friend-btn" value="Add Friend" style="background:#007bff;color:#fff;border:none;padding:0.5em 1.5em;border-radius:6px;display:inline-block;margin-top:1em;">
+                            </form>
+                        {% endif %}
                     {% elif user_not_found and search_username %}
                         <p>Nothing found.</p>
                     {% endif %}
@@ -42,3 +46,28 @@
     {% include 'footer.html' %}
 </body>
 </html>
+
+<script>
+const form = document.getElementById('add-friend-form');
+if (form) {
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('friend-btn');
+        btn.disabled = true;
+        btn.value = 'Pending';
+        btn.style.background = '#ccc';
+        btn.style.color = '#333';
+        fetch('/addfriend', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams(new FormData(form))
+        })
+        .then(response => response.text())
+        .then(data => {
+            // Optionally handle response
+        });
+    });
+}
+</script>

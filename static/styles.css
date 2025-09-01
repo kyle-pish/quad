@@ -31,6 +31,15 @@ form {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
+#add-friend-form {
+    background: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: inline !important;
+}
+
 label {
     display: block;
     margin-bottom: 15px; /* Increase margin bottom for labels */

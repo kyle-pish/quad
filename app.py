@@ -90,6 +90,28 @@ def create_friend_table():
     conn.close()
     
 '''
+create_notifications_table():
+creates a notifications table in the users.db database if one does not exist
+'''
+def create_notifications_table():
+    """Create a table to store notifications for users"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        type TEXT,
+        message TEXT,
+        is_read INTEGER DEFAULT 0,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+    ''')
+    conn.commit()
+    conn.close()
+
+'''
 get_friends_posts(username):
 retrieves all posts of frineds from the user.db database
 
@@ -103,23 +125,21 @@ def get_friends_posts(username):
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
-    user_id = cursor.fetchone()
-    user_id = user_id[0]
-    print("USER ID: ", user_id)
-    cursor.execute('SELECT user2_id FROM friendships WHERE user1_id = ?', (user_id,))
-    friend_ids = cursor.fetchall()
-    cursor.execute('SELECT user1_id FROM friendships WHERE user2_id = ?', (user_id,))
-    friend_ids = friend_ids + cursor.fetchall()
-    for friend in friend_ids:
-        print("FRIENDS IDS: ", friend[0])
-        friend_id = friend[0]
-        cursor.execute('SELECT username FROM users WHERE id = ?', (friend_id,))
-        friend_username = cursor.fetchone()
-        print("FRIEND USERNAME: ", friend_username[0])
-        friend_username = friend_username[0]
+    user_id = cursor.fetchone()[0]
+    # Find mutual friends: both users have added each other
+    cursor.execute('''
+        SELECT u.username FROM users u
+        WHERE u.id != ? AND EXISTS (
+            SELECT 1 FROM friendships f1 WHERE f1.user1_id = ? AND f1.user2_id = u.id
+        ) AND EXISTS (
+            SELECT 1 FROM friendships f2 WHERE f2.user1_id = u.id AND f2.user2_id = ?
+        )
+    ''', (user_id, user_id, user_id))
+    mutual_friends = cursor.fetchall()
+    for friend in mutual_friends:
+        friend_username = friend[0]
         cursor.execute('SELECT * FROM posts WHERE username = ? ORDER BY timestamp DESC', (friend_username,))
         all_posts = all_posts + cursor.fetchall()
-        print("FRIENDS POSTS: ", all_posts)
     conn.close()
     return all_posts
 
@@ -236,14 +256,17 @@ def profile(username):
             print(user_data)
             # Get the count of followed users for the logged-in user
             
-            # Fetch user's friends
+            # Fetch mutual friends only
+            cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+            user_id = cursor.fetchone()[0]
             cursor.execute('''
-                SELECT u.*
-                FROM users u
-                INNER JOIN friendships f ON u.id = f.user2_id
-                INNER JOIN users u2 ON f.user1_id = u2.id
-                WHERE u2.username = ?
-            ''', (username,))
+                SELECT u.* FROM users u
+                WHERE u.id != ? AND EXISTS (
+                    SELECT 1 FROM friendships f1 WHERE f1.user1_id = ? AND f1.user2_id = u.id
+                ) AND EXISTS (
+                    SELECT 1 FROM friendships f2 WHERE f2.user1_id = u.id AND f2.user2_id = ?
+                )
+            ''', (user_id, user_id, user_id))
             friends = cursor.fetchall()
 
             # Only show posts if friendship is accepted
@@ -288,13 +311,34 @@ def search():
 
         cursor.execute('SELECT * FROM users WHERE username = ?', (search_username,))
         user_data = cursor.fetchone()
-        conn.close()
 
+        friend_status = None
         if user_data:
-            return render_template('search.html', user_data=user_data)
+            # Get IDs
+            cursor.execute('SELECT id FROM users WHERE username = ?', (session['username'],))
+            my_id_row = cursor.fetchone()
+            cursor.execute('SELECT id FROM users WHERE username = ?', (search_username,))
+            other_id_row = cursor.fetchone()
+            if my_id_row and other_id_row:
+                my_id = my_id_row[0]
+                other_id = other_id_row[0]
+                # Check if current user has added searched user
+                cursor.execute('SELECT * FROM friendships WHERE user1_id = ? AND user2_id = ?', (my_id, other_id))
+                added = cursor.fetchone()
+                # Check if searched user has added current user
+                cursor.execute('SELECT * FROM friendships WHERE user1_id = ? AND user2_id = ?', (other_id, my_id))
+                added_back = cursor.fetchone()
+                if added and added_back:
+                    friend_status = 'friends'
+                elif added:
+                    friend_status = 'pending'
+                else:
+                    friend_status = None
+            conn.close()
+            return render_template('search.html', user_data=user_data, friend_status=friend_status)
         else:
+            conn.close()
             return render_template('search.html', user_not_found=True)
-
     return redirect(url_for('login'))
 
 
@@ -352,9 +396,8 @@ def add_friend():
         cursor.execute('SELECT id FROM users WHERE username = ?', (friend_username,))
         user2_id = cursor.fetchone()[0]
 
-        # Check if the friendship already exists
-        cursor.execute('SELECT * FROM friendships WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)',
-                       (user1_id, user2_id, user2_id, user1_id))
+        # Only prevent duplicate adds in the same direction
+        cursor.execute('SELECT * FROM friendships WHERE user1_id = ? AND user2_id = ?', (user1_id, user2_id))
         existing_friendship = cursor.fetchone()
 
         if existing_friendship:
@@ -363,6 +406,9 @@ def add_friend():
 
         # Add the friendship to the database
         cursor.execute('INSERT INTO friendships (user1_id, user2_id) VALUES (?, ?)', (user1_id, user2_id))
+        # Add notification for the user being added
+        cursor.execute('INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)',
+                       (user2_id, 'friend_request', f"{session['username']} added you as a friend."))
         conn.commit()
         conn.close()
         return "Friend added successfully."
@@ -375,12 +421,27 @@ def logout():
     session.pop('username', None)
     return redirect(url_for('login'))
 
+@app.route('/notifications')
+def notifications():
+    if 'username' in session:
+        conn = create_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM users WHERE username = ?', (session['username'],))
+        user_id = cursor.fetchone()[0]
+        cursor.execute('SELECT * FROM notifications WHERE user_id = ? ORDER BY timestamp DESC', (user_id,))
+        notifications = cursor.fetchall()
+        conn.close()
+        return render_template('notifications.html', notifications=notifications)
+    else:
+        return redirect(url_for('login'))
+
 
 
 if __name__ == '__main__':
     create_table()  # Create the table when the app starts
     create_post_table() # Create the table for the posts
     create_friend_table()
+    create_notifications_table()
     app.run(debug=True)
     #app.run(host='10.6.8.167', port=5000, debug=True)
 

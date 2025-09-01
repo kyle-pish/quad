@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Notifications</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='universal.css') }}">
+    <style>
+    .notification-item.unread {
+        font-weight: bold;
+    }
+    </style>
+</head>
+<body>
+    {% include 'header.html' %}
+    <main>
+        <section>
+            <div class="container">
+                <h1>Notifications</h1>
+                {% if notifications %}
+                    <ul>
+                        {% for note in notifications %}
+                            <li class="notification-item{% if not note[4] %} unread{% endif %}" style="margin-bottom:1em;">
+                                {{ note[3] }} <span style="color:#aaa;font-size:0.9em;">({{ note[5] }})</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No notifications.</p>
+                {% endif %}
+            </div>
+        </section>
+    </main>
+    {% include 'footer.html' %}
+</body>
+</html>
