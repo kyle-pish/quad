@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import bcrypt
 import sqlite3
 import os
@@ -435,7 +435,15 @@ def notifications():
     else:
         return redirect(url_for('login'))
 
-
+@app.route('/check_username', methods=['POST'])
+def check_username():
+    username = request.form.get('username')
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT 1 FROM users WHERE username = ?', (username,))
+    exists = cursor.fetchone() is not None
+    conn.close()
+    return jsonify({'available': not exists})
 
 if __name__ == '__main__':
     create_table()  # Create the table when the app starts

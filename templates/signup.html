@@ -36,18 +36,19 @@
                     <input type="text" id="name" name="name" required><br><br>
                     <label for="username">Username:</label>
                     <input type="text" id="username" name="username" required><br>
-                    <ul style="font-size:0.7em; color:#aaa; margin:0 0 1em 1.5em; padding-left:1em;">
-                        <li>4-32 characters</li>
-                        <li>Letters, numbers, underscores (_), hyphens (-), and periods (.) only</li>
+                    <span id="username-status" style="font-size:0.9em;color:#ff4d4d;font-weight:bold;display:none;"></span>
+                    <ul id="username-reqs" style="font-size:0.7em; color:#aaa; margin:0 0 1em 1.5em; padding-left:1em;">
+                        <li id="uname-len">4-32 characters</li>
+                        <li id="uname-chars">Letters, numbers, underscores (_), hyphens (-), and periods (.) only</li>
                     </ul>
                     <label for="password">Password:</label>
                     <input type="password" id="password" name="password" required><br>
-                    <ul style="font-size:0.7em; color:#aaa; margin:0 0 1em 1.5em; padding-left:1em;">
-                        <li>At least 12 characters</li>
-                        <li>Must include a lowercase letter</li>
-                        <li>Must include an uppercase letter</li>
-                        <li>Must include a number</li>
-                        <li>Must include a special character</li>
+                    <ul id="password-reqs" style="font-size:0.7em; color:#aaa; margin:0 0 1em 1.5em; padding-left:1em;">
+                        <li id="pw-len">At least 12 characters</li>
+                        <li id="pw-lower">Must include a lowercase letter</li>
+                        <li id="pw-upper">Must include an uppercase letter</li>
+                        <li id="pw-num">Must include a number</li>
+                        <li id="pw-special">Must include a special character</li>
                     </ul>
                     <label for="age">Age:</label>
                     <input type="number" id="age" name="age" required><br><br>
@@ -63,6 +64,52 @@
             </main>
         </div>
     </section>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const usernameInput = document.getElementById('username');
+    const statusSpan = document.getElementById('username-status');
+    let lastValue = '';
+    usernameInput.addEventListener('input', function() {
+        const value = usernameInput.value.trim();
+        // Username requirements
+        document.getElementById('uname-len').style.color = (value.length >= 4 && value.length <= 32) ? 'limegreen' : '#aaa';
+        document.getElementById('uname-chars').style.color = /^[A-Za-z0-9_.-]+$/.test(value) ? 'limegreen' : '#aaa';
+        if (value.length < 4) {
+            statusSpan.style.display = 'none';
+            return;
+        }
+        if (value === lastValue) return;
+        lastValue = value;
+        fetch('/check_username', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'username=' + encodeURIComponent(value)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.available) {
+                statusSpan.textContent = 'Username is unavailable.';
+                statusSpan.style.display = 'inline';
+            } else {
+                statusSpan.textContent = '';
+                statusSpan.style.display = 'none';
+            }
+        });
+    });
+    // Password requirements
+    const passwordInput = document.getElementById('password');
+    passwordInput.addEventListener('input', function() {
+        const value = passwordInput.value;
+        document.getElementById('pw-len').style.color = value.length >= 12 ? 'limegreen' : '#aaa';
+        document.getElementById('pw-lower').style.color = /[a-z]/.test(value) ? 'limegreen' : '#aaa';
+        document.getElementById('pw-upper').style.color = /[A-Z]/.test(value) ? 'limegreen' : '#aaa';
+        document.getElementById('pw-num').style.color = /[0-9]/.test(value) ? 'limegreen' : '#aaa';
+        document.getElementById('pw-special').style.color = /[^A-Za-z0-9]/.test(value) ? 'limegreen' : '#aaa';
+    });
+});
+</script>
 </body>
 
 </html>
