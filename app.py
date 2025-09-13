@@ -111,6 +111,23 @@ def create_notifications_table():
     conn.commit()
     conn.close()
 
+def create_likes_table():
+    """Create a table to store likes on posts"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS likes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        post_id INTEGER NOT NULL,
+        UNIQUE(user_id, post_id),
+        FOREIGN KEY(user_id) REFERENCES users(id),
+        FOREIGN KEY(post_id) REFERENCES posts(id)
+    )
+    ''')
+    conn.commit()
+    conn.close()
+
 '''
 get_friends_posts(username):
 retrieves all posts of frineds from the user.db database
@@ -139,7 +156,21 @@ def get_friends_posts(username):
     for friend in mutual_friends:
         friend_username = friend[0]
         cursor.execute('SELECT * FROM posts WHERE username = ? ORDER BY timestamp DESC', (friend_username,))
-        all_posts = all_posts + cursor.fetchall()
+        posts = cursor.fetchall()
+        for post in posts:
+            post_id = post[0]
+            cursor.execute('SELECT COUNT(*) FROM likes WHERE post_id = ?', (post_id,))
+            like_count = cursor.fetchone()[0]
+            cursor.execute('SELECT 1 FROM likes WHERE user_id = ? AND post_id = ?', (user_id, post_id))
+            liked = cursor.fetchone() is not None
+            all_posts.append({
+                'id': post[0],
+                'username': post[1],
+                'post_content': post[2],
+                'timestamp': post[3],
+                'like_count': like_count,
+                'liked': liked
+            })
     conn.close()
     return all_posts
 
@@ -286,7 +317,13 @@ def profile(username):
             if user_data:
                 if is_friend or my_username == username:
                     cursor.execute('SELECT * FROM posts WHERE username = ? ORDER BY timestamp DESC', (username,))
-                    posts = cursor.fetchall()
+                    posts_raw = cursor.fetchall()
+                    posts = []
+                    for post in posts_raw:
+                        post_id = post[0]
+                        cursor.execute('SELECT COUNT(*) FROM likes WHERE post_id = ?', (post_id,))
+                        like_count = cursor.fetchone()[0]
+                        posts.append((post[0], post[1], post[2], post[3], like_count))
                     conn.close()
                     return render_template('profile.html', user=user_data, posts=posts, friends=friends)
                 else:
@@ -445,11 +482,53 @@ def check_username():
     conn.close()
     return jsonify({'available': not exists})
 
+@app.route('/like_post', methods=['POST'])
+def like_post():
+    if 'username' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    post_id = request.form.get('post_id')
+    action = request.form.get('action')  # 'like' or 'unlike'
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM users WHERE username = ?', (session['username'],))
+    user_id = cursor.fetchone()[0]
+    cursor.execute('SELECT username FROM posts WHERE id = ?', (post_id,))
+    post_author_row = cursor.fetchone()
+    if not post_author_row:
+        conn.close()
+        return jsonify({'error': 'Post not found'}), 404
+    post_author = post_author_row[0]
+    if action == 'like':
+        # Check if this user has ever liked this post before
+        cursor.execute('SELECT 1 FROM notifications WHERE user_id = (SELECT id FROM users WHERE username = ?) AND type = "like" AND message = ? LIMIT 1',
+                       (post_author, f"{session['username']} liked your post."))
+        already_notified = cursor.fetchone() is not None
+        try:
+            cursor.execute('INSERT INTO likes (user_id, post_id) VALUES (?, ?)', (user_id, post_id))
+            # Add notification for post author if not self and not already notified
+            if post_author != session['username'] and not already_notified:
+                cursor.execute('SELECT id FROM users WHERE username = ?', (post_author,))
+                author_id = cursor.fetchone()[0]
+                cursor.execute('INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)',
+                               (author_id, 'like', f"{session['username']} liked your post."))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            pass  # Already liked
+    elif action == 'unlike':
+        cursor.execute('DELETE FROM likes WHERE user_id = ? AND post_id = ?', (user_id, post_id))
+        conn.commit()
+    # Get updated like count
+    cursor.execute('SELECT COUNT(*) FROM likes WHERE post_id = ?', (post_id,))
+    like_count = cursor.fetchone()[0]
+    conn.close()
+    return jsonify({'like_count': like_count})
+
 if __name__ == '__main__':
     create_table()  # Create the table when the app starts
     create_post_table() # Create the table for the posts
     create_friend_table()
     create_notifications_table()
+    create_likes_table()
     app.run(debug=True)
     #app.run(host='10.6.8.167', port=5000, debug=True)
 

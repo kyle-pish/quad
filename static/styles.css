@@ -68,6 +68,21 @@ input[type="submit"] {
     transition: background-color 0.3s ease-in-out;
 }
 
+.like-btn {
+    background: #888;
+    color: #fff;
+    border: none;
+    padding: 0.4em 1.2em;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-weight: 500;
+    margin-right: 0.5em;
+}
+.like-btn.liked {
+    background: #007bff;
+}
+
 input[type="submit"]:hover {
     background-color: #0056b3;
 }

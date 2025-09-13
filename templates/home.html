@@ -42,10 +42,12 @@
                         {% for post in posts %}
                             <li>
                                 <div class="post-details">
-                                    <strong>{{ post[1] }}</strong>
-                                    <small class="date-time">{{ post[3] }}</small>
+                                    <strong>{{ post['username'] }}</strong>
+                                    <small class="date-time">{{ post['timestamp'] }}</small>
                                 </div>
-                                <p>{{ post[2] }}</p>
+                                <p>{{ post['post_content'] }}</p>
+                                <button class="like-btn{% if post['liked'] %} liked{% endif %}" type="button" data-post-id="{{ post['id'] }}">Like</button>
+                                <span class="like-count" id="like-count-{{ post['id'] }}">{{ post['like_count'] }}</span> likes
                             </li>
                             <br><br>
                         {% endfor %}
@@ -64,6 +66,28 @@
         </section>
     </main>
     {% include 'footer.html' %}
+    <script>
+    document.querySelectorAll('.like-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const postId = btn.getAttribute('data-post-id');
+            const liked = btn.classList.contains('liked');
+            const action = liked ? 'unlike' : 'like';
+            fetch('/like_post', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `post_id=${postId}&action=${action}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.like_count !== undefined) {
+                    document.getElementById('like-count-' + postId).textContent = data.like_count;
+                    btn.classList.toggle('liked', action === 'like');
+                }
+            });
+        });
+    });
+    </script>
 </body>
-
 </html>
