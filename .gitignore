@@ -1,0 +1,29 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Python virtual environments
+venv/
+env/
+.env
+
+# Database files
+users.db
+*.sqlite3
+*.db
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+
+# Test / coverage
+.coverage
+.pytest_cache/
+
+# Logs
+*.log
+
+# Node/npm
+node_modules/
