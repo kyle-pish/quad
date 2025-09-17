@@ -249,9 +249,9 @@ def home():
             all_posts = get_friends_posts(username)
             return render_template('home.html', posts=all_posts)
         else:
-            # Failed login - handle appropriately (redirect to login page, display error, etc.)
-            return "Login failed. Invalid username or password."
-        conn.close()
+            # Failed login - show error on login page
+            conn.close()
+            return render_template('login.html', error="Invalid username or password.", username=username)
 
         
 
