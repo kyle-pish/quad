@@ -7,63 +7,127 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='universal.css') }}">
     <style>
-        li {
-            border: 1px solid #ccc; /* Outline style */
-            border-radius: 5px;
-            padding: 15px;
-            margin-bottom: 15px;
-            width: 500px; /* Set the width */
-            margin: 0 auto; /* Center horizontally */
-            box-sizing: border-box; /* Include padding and border in width calculation */
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Segoe UI', Arial, sans-serif;
         }
-        ul {
-            list-style: none; /* Remove bullet points */
-            padding: 0;
-            margin: 0;
+        .profile-card {
+            background: #222;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+            padding: 2.5rem 2rem 2rem 2rem;
+            max-width: 420px;
+            margin: 2.5rem auto 2rem auto;
+            text-align: center;
+            position: relative;
         }
-        .date-time {
-            color: #666; 
+        .avatar {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: #333;
+            border: 2px solid #007bff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.8rem;
+            color: #00bfff;
+            margin: 0 auto 1.2rem auto;
+            font-weight: 700;
+            letter-spacing: 1px;
         }
-        .post-details {
-            margin-bottom: 8px; /* Adjust the value to add spacing between elements */
+        .profile-info p {
+            margin: 0.2em 0 0.6em 0;
+            font-size: 1.08rem;
         }
-        h2 {
-            text-align: center; /* Center the text */
-            margin-right: 450px; /* Offset to the left */
-            
+        .profile-info strong {
+            color: #fff;
         }
-
-        /* Hide the friends list by default */
+        .friends {
+            margin: 1.2em 0 1.5em 0;
+        }
+        .friends-button {
+            background: #007bff;
+            color: #fff;
+            border: none;
+            padding: 7px 18px;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .friends-button:hover {
+            background: #0056b3;
+        }
         .friends-list {
             display: none;
             position: absolute;
-            background: #666;
-            padding: 10px;
-            width: 150px;
-            list-style: none;
-            margin: 0;
-            border: none; /* Remove the border */
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3); /* Adding shadow for a slight separation effect */
-        }
-
-        /* Style the Friends button */
-        .friends-button {
-            background-color: #007bff;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #222;
             color: #fff;
-            border: none;
-            padding: 5px 10px;
-            cursor: pointer;
-            border-radius: 5px;
+            padding: 1em 1.2em;
+            width: 210px;
+            border-radius: 10px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.23);
+            margin-top: 0.5em;
+            z-index: 10;
         }
-
-        /* Remove the default list styles when displayed */
         .friends-list li {
-            list-style: none;
-            margin: 0;
-            padding: 5px 0;
-            border: none;
+            padding: 0.4em 0;
+            border-bottom: 1px solid #333;
         }
-        
+        .friends-list li:last-child {
+            border-bottom: none;
+        }
+        .posts-section {
+            max-width: 600px;
+            margin: 2.5rem auto 2rem auto;
+        }
+        .posts-section h2 {
+            text-align: left;
+            margin-bottom: 1.2em;
+            color: #fff;
+            font-size: 1.5rem;
+        }
+        .post-card {
+            background: #333;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.17);
+            padding: 1.2em 1.5em 1em 1.5em;
+            margin-bottom: 1.5em;
+            position: relative;
+        }
+        .post-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5em;
+        }
+        .post-details strong {
+            color: #00bfff;
+            font-size: 1.08rem;
+        }
+        .date-time {
+            color: #b0b0b0;
+            font-size: 0.98rem;
+        }
+        .post-card p {
+            margin: 0.5em 0 0.7em 0;
+            color: #fff;
+        }
+        .likes {
+            color: #28e07b;
+            font-weight: 600;
+            font-size: 1.01rem;
+        }
+        @media (max-width: 700px) {
+            .profile-card, .posts-section {
+                max-width: 98vw;
+                padding: 1.2rem 0.5rem;
+            }
+        }
     </style>
 </head>
 
@@ -72,42 +136,45 @@
     <main>
         <section>
             <div class="container">
-
-                <h1>User Profile</h1>
                 {% if user %}
-                    <p><strong>Name:</strong> {{ user[1] }}</p>
-                    <p><strong>Username:</strong> {{ user[2] }}</p>
-                    <p><strong>Age:</strong> {{ user[4] }}</p>
-                    <p><strong>College:</strong> {{ user[5] }}</p>
-                    <!-- Display Friends -->
+                <div class="profile-card">
+                    <div class="avatar">
+                        {{ user[2][0]|upper }}
+                    </div>
+                    <div class="profile-info">
+                        <h1 style="margin-bottom:0.3em;">{{ user[1] }}</h1>
+                        <p><strong>@{{ user[2] }}</strong></p>
+                        <p><span style="color:#888;">Age:</span> {{ user[4] }}</p>
+                        <p><span style="color:#888;">College:</span> {{ user[5] }}</p>
+                    </div>
                     <div class="friends">
-                        <button onclick="toggleFriends()" class="friends-button">Friends</button>
+                        <button onclick="toggleFriends()" class="friends-button">Friends ({{ friends|length }})</button>
                         <ul id="friendsList" class="friends-list">
                             {% for friend in friends %}
                                 <li>{{ friend[1] }}</li>
                             {% endfor %}
                         </ul>
                     </div>
-                    <!-- Display Posts -->
+                </div>
+                <div class="posts-section">
                     <h2>Posts</h2>
                     {% if posts %}
-                        <ul>
-                            {% for post in posts %}
-                                <li>
-                                    <div class="post-details">
-                                        <strong>{{ post[1] }}</strong>
-                                        <small class="date-time">{{ post[3] }}</small>
-                                    </div>
-                                    <p>{{ post[2] }}</p>
-                                    <span style="color:#007bff;font-weight:500;">{{ post[4] }} likes</span>
-                                </li>
-                            {% endfor %}
-                        </ul>
+                        {% for post in posts %}
+                        <div class="post-card">
+                            <div class="post-details">
+                                <strong>{{ post[1] }}</strong>
+                                <span class="date-time">{{ post[3] }}</span>
+                            </div>
+                            <p>{{ post[2] }}</p>
+                            <span class="likes">{{ post[4] }} likes</span>
+                        </div>
+                        {% endfor %}
                     {% else %}
-                        <p>No posts available.</p>
+                        <p style="text-align:center;color:#888;">No posts available.</p>
                     {% endif %}
+                </div>
                 {% else %}
-                    <p>User data not found.</p>
+                    <p style="text-align:center;">User data not found.</p>
                 {% endif %}
             </div>
         </section>
