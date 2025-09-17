@@ -40,7 +40,7 @@ def create_table():
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
-        username TEXT UNIQUE,
+        username TEXT UNIQUE COLLATE NOCASE,
         password TEXT,
         age INTEGER,
         college TEXT
@@ -141,7 +141,7 @@ def get_friends_posts(username):
     all_posts = []
     conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+    cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (username,))
     user_id = cursor.fetchone()[0]
     # Find mutual friends: both users have added each other
     cursor.execute('''
@@ -241,12 +241,14 @@ def home():
         conn = create_connection()
         cursor = conn.cursor()
 
-        cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
+        # Perform case-insensitive lookup for login
+        cursor.execute('SELECT * FROM users WHERE username = ? COLLATE NOCASE', (username,))
         user = cursor.fetchone()
         if user and bcrypt.checkpw(password.encode('utf-8'), user[3]):
-            # Successful login - set the session and redirect to home page
-            session['username'] = username
-            all_posts = get_friends_posts(username)
+            # Successful login - set the session to the stored username (preserve original casing)
+            stored_username = user[2]
+            session['username'] = stored_username
+            all_posts = get_friends_posts(stored_username)
             return render_template('home.html', posts=all_posts)
         else:
             # Failed login - show error on login page
@@ -282,13 +284,14 @@ def profile(username):
             conn = create_connection()
             cursor = conn.cursor()
 
-            cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
+            # Case-insensitive profile lookup
+            cursor.execute('SELECT * FROM users WHERE username = ? COLLATE NOCASE', (username,))
             user_data = cursor.fetchone()
             print(user_data)
             # Get the count of followed users for the logged-in user
             
             # Fetch mutual friends only
-            cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+            cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (username,))
             user_id = cursor.fetchone()[0]
             cursor.execute('''
                 SELECT u.* FROM users u
@@ -303,9 +306,9 @@ def profile(username):
             # Only show posts if friendship is accepted
             posts = []
             my_username = session['username']
-            cursor.execute('SELECT id FROM users WHERE username = ?', (my_username,))
+            cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (my_username,))
             my_id_row = cursor.fetchone()
-            cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+            cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (username,))
             other_id_row = cursor.fetchone()
             is_friend = False
             if my_id_row and other_id_row:
@@ -316,7 +319,7 @@ def profile(username):
                     is_friend = True
             if user_data:
                 if is_friend or my_username == username:
-                    cursor.execute('SELECT * FROM posts WHERE username = ? ORDER BY timestamp DESC', (username,))
+                    cursor.execute('SELECT * FROM posts WHERE username = ? ORDER BY timestamp DESC', (user_data[2],))
                     posts_raw = cursor.fetchall()
                     posts = []
                     for post in posts_raw:
@@ -346,15 +349,16 @@ def search():
         conn = create_connection()
         cursor = conn.cursor()
 
-        cursor.execute('SELECT * FROM users WHERE username = ?', (search_username,))
+        # Case-insensitive search lookup (but return stored-case username/display info)
+        cursor.execute('SELECT * FROM users WHERE username = ? COLLATE NOCASE', (search_username,))
         user_data = cursor.fetchone()
 
         friend_status = None
         if user_data:
-            # Get IDs
-            cursor.execute('SELECT id FROM users WHERE username = ?', (session['username'],))
+            # Get IDs (case-insensitive)
+            cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (session['username'],))
             my_id_row = cursor.fetchone()
-            cursor.execute('SELECT id FROM users WHERE username = ?', (search_username,))
+            cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (search_username,))
             other_id_row = cursor.fetchone()
             if my_id_row and other_id_row:
                 my_id = my_id_row[0]
@@ -426,12 +430,20 @@ def add_friend():
         conn = create_connection()
         cursor = conn.cursor()
 
-        # Get the IDs of the logged-in user and the user to be added as a friend
-        cursor.execute('SELECT id FROM users WHERE username = ?', (session['username'],))
-        user1_id = cursor.fetchone()[0]
+        # Get the IDs of the logged-in user and the user to be added as a friend (case-insensitive)
+        cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (session['username'],))
+        user1_row = cursor.fetchone()
+        if not user1_row:
+            conn.close()
+            return "Current user not found."
+        user1_id = user1_row[0]
 
-        cursor.execute('SELECT id FROM users WHERE username = ?', (friend_username,))
-        user2_id = cursor.fetchone()[0]
+        cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (friend_username,))
+        user2_row = cursor.fetchone()
+        if not user2_row:
+            conn.close()
+            return "User to add not found."
+        user2_id = user2_row[0]
 
         # Only prevent duplicate adds in the same direction
         cursor.execute('SELECT * FROM friendships WHERE user1_id = ? AND user2_id = ?', (user1_id, user2_id))
@@ -449,8 +461,7 @@ def add_friend():
         conn.commit()
         conn.close()
         return "Friend added successfully."
-    else:
-        return redirect(url_for('login'))
+    return redirect(url_for('login'))
 
     
 @app.route('/logout')
@@ -463,21 +474,25 @@ def notifications():
     if 'username' in session:
         conn = create_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT id FROM users WHERE username = ?', (session['username'],))
-        user_id = cursor.fetchone()[0]
+        cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (session['username'],))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return redirect(url_for('login'))
+        user_id = row[0]
         cursor.execute('SELECT * FROM notifications WHERE user_id = ? ORDER BY timestamp DESC', (user_id,))
         notifications = cursor.fetchall()
         conn.close()
         return render_template('notifications.html', notifications=notifications)
-    else:
-        return redirect(url_for('login'))
+    return redirect(url_for('login'))
 
 @app.route('/check_username', methods=['POST'])
 def check_username():
     username = request.form.get('username')
     conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT 1 FROM users WHERE username = ?', (username,))
+    # Check existence case-insensitively
+    cursor.execute('SELECT 1 FROM users WHERE username = ? COLLATE NOCASE', (username,))
     exists = cursor.fetchone() is not None
     conn.close()
     return jsonify({'available': not exists})
@@ -490,7 +505,7 @@ def like_post():
     action = request.form.get('action')  # 'like' or 'unlike'
     conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT id FROM users WHERE username = ?', (session['username'],))
+    cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (session['username'],))
     user_id = cursor.fetchone()[0]
     cursor.execute('SELECT username FROM posts WHERE id = ?', (post_id,))
     post_author_row = cursor.fetchone()
@@ -500,14 +515,14 @@ def like_post():
     post_author = post_author_row[0]
     if action == 'like':
         # Check if this user has ever liked this post before
-        cursor.execute('SELECT 1 FROM notifications WHERE user_id = (SELECT id FROM users WHERE username = ?) AND type = "like" AND message = ? LIMIT 1',
+        cursor.execute('SELECT 1 FROM notifications WHERE user_id = (SELECT id FROM users WHERE username = ? COLLATE NOCASE) AND type = "like" AND message = ? LIMIT 1',
                        (post_author, f"{session['username']} liked your post."))
         already_notified = cursor.fetchone() is not None
         try:
             cursor.execute('INSERT INTO likes (user_id, post_id) VALUES (?, ?)', (user_id, post_id))
             # Add notification for post author if not self and not already notified
             if post_author != session['username'] and not already_notified:
-                cursor.execute('SELECT id FROM users WHERE username = ?', (post_author,))
+                cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (post_author,))
                 author_id = cursor.fetchone()[0]
                 cursor.execute('INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)',
                                (author_id, 'like', f"{session['username']} liked your post."))
