@@ -1,0 +1,16 @@
+<div id="comments-modal" class="comments-modal" style="display:none; position:fixed; left:0; right:0; top:0; bottom:0; background:rgba(0,0,0,0.7); z-index:9999;">
+  <div class="comments-modal-content" style="background:#111; color:#eee; max-width:600px; margin:6% auto; padding:1em; border-radius:8px; position:relative; border:1px solid #222; transform-origin: top center; display:flex; flex-direction:column;">
+    <button id="close-comments" style="position:absolute; right:8px; top:8px; background:transparent; color:#eee; border:none; font-size:1rem; cursor:pointer;">Close ✕</button>
+    <h3 style="margin-top:0; color:#fff;">Comments</h3>
+    <form id="comment-form" style="margin-bottom:10px;">
+      <input type="hidden" name="post_id" id="comment-post-id" value="">
+      <textarea id="comment-content" name="content" rows="2" style="width:100%; height:auto; min-height:44px; max-height:88px; background:#0b0b0b; color:#eee; border:1px solid #222; padding:8px; resize:vertical; box-sizing:border-box; border-radius:6px;" placeholder="Add a comment..."></textarea>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px;">
+        <button type="submit" style="background:#1f6feb; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer;">Post Comment</button>
+      </div>
+    </form>
+    <div id="comments-list" style="max-height:320px; overflow:auto; scrollbar-gutter:stable; border:1px solid #222; padding:8px; margin-bottom:8px; background:linear-gradient(180deg,#0f0f0f, #111); display:block;">
+      <!-- Comment item template will be inserted here by JS. Each item should include an avatar and username link. -->
+    </div>
+  </div>
+</div>

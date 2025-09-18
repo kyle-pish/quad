@@ -43,7 +43,8 @@ def create_table():
         username TEXT UNIQUE COLLATE NOCASE,
         password TEXT,
         age INTEGER,
-        college TEXT
+        college TEXT,
+        pfp TEXT DEFAULT ''
     )
 ''')
 
@@ -66,6 +67,8 @@ def create_post_table():
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )
     ''')
+    conn.commit()
+    conn.close()
 
 
 '''
@@ -128,6 +131,24 @@ def create_likes_table():
     conn.commit()
     conn.close()
 
+def create_comments_table():
+    """Create a table to store comments on posts"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        content TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id),
+        FOREIGN KEY(post_id) REFERENCES posts(id)
+    )
+    ''')
+    conn.commit()
+    conn.close()
+
 '''
 get_friends_posts(username):
 retrieves all posts of frineds from the user.db database
@@ -161,6 +182,8 @@ def get_friends_posts(username):
             post_id = post[0]
             cursor.execute('SELECT COUNT(*) FROM likes WHERE post_id = ?', (post_id,))
             like_count = cursor.fetchone()[0]
+            cursor.execute('SELECT COUNT(*) FROM comments WHERE post_id = ?', (post_id,))
+            comment_count = cursor.fetchone()[0]
             cursor.execute('SELECT 1 FROM likes WHERE user_id = ? AND post_id = ?', (user_id, post_id))
             liked = cursor.fetchone() is not None
             all_posts.append({
@@ -169,6 +192,7 @@ def get_friends_posts(username):
                 'post_content': post[2],
                 'timestamp': post[3],
                 'like_count': like_count,
+                'comment_count': comment_count,
                 'liked': liked
             })
     conn.close()
@@ -189,6 +213,7 @@ def signup():
         password = request.form['password']
         age = request.form['age']
         college = request.form.get('college', '')
+        pfp = request.form.get('pfp', '')
 
         errors = []
         # Username validation
@@ -219,8 +244,8 @@ def signup():
         cursor = conn.cursor()
 
         try:
-            cursor.execute('INSERT INTO users (name, username, password, age, college) VALUES (?, ?, ?, ?, ?)',
-                           (name, username, hashed_pw, age, college))
+            cursor.execute('INSERT INTO users (name, username, password, age, college, pfp) VALUES (?, ?, ?, ?, ?, ?)',
+                           (name, username, hashed_pw, age, college, pfp))
             conn.commit()
             conn.close()
             return redirect(url_for('login'))
@@ -247,7 +272,9 @@ def home():
         if user and bcrypt.checkpw(password.encode('utf-8'), user[3]):
             # Successful login - set the session to the stored username (preserve original casing)
             stored_username = user[2]
+            stored_pfp = user[6] if len(user) > 6 else ''
             session['username'] = stored_username
+            session['pfp'] = stored_pfp
             all_posts = get_friends_posts(stored_username)
             return render_template('home.html', posts=all_posts)
         else:
@@ -269,6 +296,15 @@ def home():
     # Check if the user is logged in using the session
     if 'username' in session:
         username = session['username']
+        # ensure pfp is available in session
+        if 'pfp' not in session:
+            conn = create_connection()
+            cur = conn.cursor()
+            cur.execute('SELECT pfp FROM users WHERE username = ? COLLATE NOCASE', (username,))
+            row = cur.fetchone()
+            if row:
+                session['pfp'] = row[0]
+            conn.close()
         all_posts = get_friends_posts(username)
         return render_template('home.html', posts=all_posts)
     else:
@@ -326,9 +362,21 @@ def profile(username):
                         post_id = post[0]
                         cursor.execute('SELECT COUNT(*) FROM likes WHERE post_id = ?', (post_id,))
                         like_count = cursor.fetchone()[0]
+                        cursor.execute('SELECT COUNT(*) FROM comments WHERE post_id = ?', (post_id,))
+                        comment_count = cursor.fetchone()[0]
                         posts.append((post[0], post[1], post[2], post[3], like_count))
                     conn.close()
-                    return render_template('profile.html', user=user_data, posts=posts, friends=friends)
+                    # convert posts to include comment count
+                    posts_with_counts = []
+                    for p in posts:
+                        # p is (id, username, content, timestamp, like_count)
+                        cursor_conn = create_connection()
+                        cur = cursor_conn.cursor()
+                        cur.execute('SELECT COUNT(*) FROM comments WHERE post_id = ?', (p[0],))
+                        cc = cur.fetchone()[0]
+                        cursor_conn.close()
+                        posts_with_counts.append((p[0], p[1], p[2], p[3], p[4], cc))
+                    return render_template('profile.html', user=user_data, posts=posts_with_counts, friends=friends)
                 else:
                     conn.close()
                     return render_template('profile.html', user=user_data, posts=None, friends=friends, not_friends=True)
@@ -497,6 +545,65 @@ def check_username():
     conn.close()
     return jsonify({'available': not exists})
 
+
+@app.route('/comments/<int:post_id>', methods=['GET'])
+def get_comments(post_id):
+    """Return JSON list of comments for a given post id"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT c.id, u.username, c.content, c.timestamp, u.pfp
+        FROM comments c
+        JOIN users u ON u.id = c.user_id
+        WHERE c.post_id = ?
+        ORDER BY c.timestamp DESC
+    ''', (post_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    comments = []
+    for r in rows:
+        comments.append({'id': r[0], 'username': r[1], 'content': r[2], 'timestamp': r[3], 'pfp': r[4]})
+    return jsonify({'comments': comments})
+
+
+@app.route('/add_comment', methods=['POST'])
+def add_comment():
+    if 'username' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    post_id = request.form.get('post_id')
+    content = request.form.get('content')
+    if not post_id or not content:
+        return jsonify({'error': 'post_id and content are required'}), 400
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (session['username'],))
+    user_row = cursor.fetchone()
+    if not user_row:
+        conn.close()
+        return jsonify({'error': 'User not found'}), 404
+    user_id = user_row[0]
+    try:
+        cursor.execute('INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)', (post_id, user_id, content))
+        # optional: add notification to post author
+        cursor.execute('SELECT username FROM posts WHERE id = ?', (post_id,))
+        post_author_row = cursor.fetchone()
+        if post_author_row:
+            post_author = post_author_row[0]
+            if post_author != session['username']:
+                cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (post_author,))
+                author_id_row = cursor.fetchone()
+                if author_id_row:
+                    author_id = author_id_row[0]
+                    cursor.execute('INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)',
+                                   (author_id, 'comment', f"{session['username']} commented on your post."))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'error': 'Could not add comment'}), 500
+
 @app.route('/like_post', methods=['POST'])
 def like_post():
     if 'username' not in session:
@@ -544,6 +651,7 @@ if __name__ == '__main__':
     create_friend_table()
     create_notifications_table()
     create_likes_table()
+    create_comments_table()
     app.run(debug=True)
     #app.run(host='10.6.8.167', port=5000, debug=True)
 

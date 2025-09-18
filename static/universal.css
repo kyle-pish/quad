@@ -10,6 +10,7 @@ body {
 
 a {
   transition: all .3s ease-in-out;
+  color: #007bff; /* restore default blue hyperlinks */
 }
 
 h1 {
@@ -218,3 +219,5 @@ input[type="text"], input[type="password"], input[type="number"]  {
 main {
   min-height: 80vh;
 }
+
+/* font-palette-values moved back to header template */
