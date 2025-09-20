@@ -152,9 +152,16 @@
                                 <span class="date-time">{{ post[3] }}</span>
                             </div>
                             <p>{{ post[2] }}</p>
-                            <span class="likes">{{ post[4] }} likes</span>
-                            <button class="comment-btn" type="button" data-post-id="{{ post[0] }}">Comment</button>
-                            <span class="comment-count" id="comment-count-{{ post[0] }}">{{ post[5] }}</span> comments
+                            <button class="like-btn" type="button" data-post-id="{{ post[0] }}" aria-pressed="false">
+                                <svg class="heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                                </svg>
+                                <span class="like-count" id="like-count-{{ post[0] }}">{{ post[4] }}</span>
+                            </button>
+                            <button class="comment-btn icon-only" type="button" data-post-id="{{ post[0] }}" aria-label="Open comments">
+                                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                <span class="comment-count" id="comment-count-{{ post[0] }}">{{ post[5] }}</span>
+                            </button>
                         </div>
                         {% endfor %}
                     {% else %}
@@ -180,6 +187,42 @@
                 friendsList.style.display = 'none';
             }
         }
+    </script>
+    <script>
+    // Wire up like buttons on profile page
+    document.querySelectorAll('.like-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const postId = btn.getAttribute('data-post-id');
+            const liked = btn.classList.contains('liked');
+            const action = liked ? 'unlike' : 'like';
+            btn.classList.toggle('liked', action === 'like');
+            btn.setAttribute('aria-pressed', action === 'like' ? 'true' : 'false');
+            const heart = btn.querySelector('.heart');
+            if (heart) {
+                heart.classList.add('pop');
+                setTimeout(() => heart.classList.remove('pop'), 200);
+            }
+            fetch('/like_post', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `post_id=${postId}&action=${action}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.like_count !== undefined) {
+                    document.getElementById('like-count-' + postId).textContent = data.like_count;
+                    btn.classList.toggle('liked', data.liked || action === 'like');
+                    btn.setAttribute('aria-pressed', btn.classList.contains('liked') ? 'true' : 'false');
+                }
+            })
+            .catch(() => {
+                btn.classList.toggle('liked', liked);
+                btn.setAttribute('aria-pressed', liked ? 'true' : 'false');
+            });
+        });
+    });
     </script>
 </body>
 

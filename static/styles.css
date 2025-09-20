@@ -68,19 +68,140 @@ input[type="submit"] {
     transition: background-color 0.3s ease-in-out;
 }
 
-.like-btn {
-    background: #888;
+.like-btn,
+.comment-btn.icon-only {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
     color: #fff;
-    border: none;
-    padding: 0.4em 1.2em;
-    border-radius: 6px;
+    padding: 6px 10px; /* consistent spacing */
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.04);
     cursor: pointer;
-    transition: background 0.2s;
-    font-weight: 500;
-    margin-right: 0.5em;
+    font-weight: 600;
 }
+
+/* Heart icon (SVG) baseline style */
+.like-btn .heart {
+    width: 18px;
+    height: 18px;
+    display: block; /* let flex parent center it */
+    fill: transparent; /* outline by default */
+    stroke: currentColor;
+    stroke-width: 1.6px;
+    transition: transform 160ms cubic-bezier(.2,.8,.2,1), fill 200ms ease, stroke 200ms ease;
+    transform-origin: center center;
+}
+
+/* Slight pop when toggled */
+.like-btn .heart.pop {
+    transform: scale(1.14);
+}
+
+/* Liked state: filled red heart with subtle shadow */
 .like-btn.liked {
-    background: #007bff;
+    color: #e0245e; /* sets stroke and then fill when liked */
+}
+.like-btn.liked .heart {
+    fill: currentColor;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.45));
+}
+
+/* Like count next to the heart */
+.like-count {
+    color: #d1d5db; /* light gray */
+    font-weight: 500;
+}
+
+.like-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    min-width: 18px;
+    margin-left: 0;
+}
+
+.comment-count {
+    color: #d1d5db;
+    font-weight: 500;
+    margin-left: 0.35rem;
+}
+
+/* ensure the comment count vertically centers with the icon/button */
+.comment-count {
+    display: inline-flex;
+    align-items: center;
+    height: 20px; /* match icon line-height approximations */
+    vertical-align: middle;
+}
+
+/* Comment button styles */
+.comment-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    transition: background 120ms ease, transform 120ms ease;
+}
+.comment-btn:hover {
+    background: rgba(159,212,255,0.04);
+    transform: translateY(-1px) scale(1.02);
+}
+
+/* Icon-only speak bubble style for comment buttons */
+.comment-btn.icon-only svg {
+    width: 18px;
+    height: 18px;
+}
+.comment-btn.icon-only:hover {
+    /* subtle highlight on hover */
+    background: rgba(159,212,255,0.03);
+    transform: translateY(-1px) scale(1.02);
+}
+
+/* make both like and comment buttons lift similarly */
+.like-btn:hover,
+.comment-btn:hover {
+    transform: translateY(-1px) scale(1.02);
+}
+
+/* Make like button hover match comment button (subtle lift + tint) */
+.like-btn:hover {
+    background: rgba(255,255,255,0.02);
+    transform: translateY(-1px) scale(1.02);
+}
+.like-btn:hover .heart {
+    /* tiny emphasis on hover */
+    transform: scale(1.06);
+}
+
+.like-btn.liked {
+    border-color: rgba(224,36,94,0.18);
+}
+
+/* When comment count is present inside the button, space it nicely */
+.comment-btn.icon-only {
+    display: inline-flex; /* ensure flex layout */
+    align-items: center;
+    gap: 0.4rem;
+}
+.comment-btn.icon-only .comment-count {
+    margin-left: 0;
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.95rem;
+    min-width: 18px;
+    justify-content: center;
+}
+
+/* When comments modal is open, mark button active */
+.comment-btn.active {
+    /* Active: emphasize the icon color rather than a heavy background */
+    background: transparent;
+    color: #9fd4ff; /* change the icon color via currentColor */
+    transform: none;
+    box-shadow: none;
 }
 
 input[type="submit"]:hover {

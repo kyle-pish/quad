@@ -7,6 +7,11 @@ document.addEventListener('DOMContentLoaded', function() {
     list.innerHTML = 'Loading...';
     // show and animate modal
     modal.style.display = 'block';
+    // mark the comment button for this post as active (if present)
+    try {
+      const btn = document.querySelector('.comment-btn[data-post-id="' + postId + '"]');
+      if (btn) btn.classList.add('active');
+    } catch (e) { /* ignore */ }
     const content = modal.querySelector('.comments-modal-content');
     if (content) {
       content.style.opacity = '0';
@@ -85,13 +90,21 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       modal.style.display = 'none';
     }
+    // remove active state from any comment buttons
+    document.querySelectorAll('.comment-btn.active').forEach(b => b.classList.remove('active'));
   }
 
-  // Delegate click for comment buttons
+  // Delegate click for comment buttons (support clicks on inner SVGs)
   document.body.addEventListener('click', function(e) {
-    if (e.target && e.target.matches('.comment-btn')) {
-      const postId = e.target.getAttribute('data-post-id');
-      openComments(postId);
+    let el = e.target;
+    // walk up to find .comment-btn if inner element was clicked
+    while (el && el !== document.body) {
+      if (el.matches && el.matches('.comment-btn')) {
+        const postId = el.getAttribute('data-post-id');
+        openComments(postId);
+        break;
+      }
+      el = el.parentElement;
     }
   });
 
