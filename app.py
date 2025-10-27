@@ -159,12 +159,20 @@ returns:
 all_posts - a list of all posts from friends of [username] in the users.db data
 '''
 def get_friends_posts(username):
+    """Retrieve posts from both mutual friends and the logged-in user, sorted by timestamp.
+    
+    Args:
+        username: The logged-in user's username
+    Returns:
+        List of posts from mutual friends and the user's own posts, sorted by timestamp
+    """
     all_posts = []
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (username,))
     user_id = cursor.fetchone()[0]
-    # Find mutual friends: both users have added each other
+
+    # First, get mutual friends (users who have added each other)
     cursor.execute('''
         SELECT u.username FROM users u
         WHERE u.id != ? AND EXISTS (
@@ -173,10 +181,14 @@ def get_friends_posts(username):
             SELECT 1 FROM friendships f2 WHERE f2.user1_id = u.id AND f2.user2_id = ?
         )
     ''', (user_id, user_id, user_id))
-    mutual_friends = cursor.fetchall()
-    for friend in mutual_friends:
-        friend_username = friend[0]
-        cursor.execute('SELECT * FROM posts WHERE username = ? ORDER BY timestamp DESC', (friend_username,))
+    mutual_friends = [friend[0] for friend in cursor.fetchall()]
+    
+    # Include the user's own username in the list of usernames to fetch posts from
+    usernames_to_fetch = mutual_friends + [username]
+    
+    # Fetch posts for all usernames (friends + self)
+    for username_to_fetch in usernames_to_fetch:
+        cursor.execute('SELECT * FROM posts WHERE username = ? COLLATE NOCASE', (username_to_fetch,))
         posts = cursor.fetchall()
         for post in posts:
             post_id = post[0]
@@ -195,6 +207,10 @@ def get_friends_posts(username):
                 'comment_count': comment_count,
                 'liked': liked
             })
+    
+    # Sort all posts by timestamp, newest first
+    all_posts.sort(key=lambda p: p['timestamp'], reverse=True)
+    
     conn.close()
     return all_posts
 

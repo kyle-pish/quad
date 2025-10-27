@@ -8,6 +8,15 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='universal.css') }}">
     <style>
+        /* make disabled like button look like plain icon without outline/hover */
+        .like-btn.disabled {
+            background: transparent;
+            border: none;
+            padding: 0;
+            cursor: default;
+        }
+        .like-btn.disabled .heart { opacity: 0.6; }
+        .like-btn.disabled:hover { transform: none; }
         li {
             border: 1px solid #ccc; /* Outline style */
             border-radius: 5px;
@@ -46,12 +55,21 @@
                                     <small class="date-time">{{ post['timestamp'] }}</small>
                                 </div>
                                 <p>{{ post['post_content'] }}</p>
-                                <button class="like-btn{% if post['liked'] %} liked{% endif %}" type="button" data-post-id="{{ post['id'] }}" aria-pressed="{% if post['liked'] %}true{% else %}false{% endif %}">
-                                    <svg class="heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                                    </svg>
-                                    <span class="like-count" id="like-count-{{ post['id'] }}">{{ post['like_count'] }}</span>
-                                </button>
+                                {% if session.get('username') and post['username'] != session.get('username') %}
+                                    <button class="like-btn{% if post['liked'] %} liked{% endif %}" type="button" data-post-id="{{ post['id'] }}" aria-pressed="{% if post['liked'] %}true{% else %}false{% endif %}">
+                                        <svg class="heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                                        </svg>
+                                        <span class="like-count" id="like-count-{{ post['id'] }}">{{ post['like_count'] }}</span>
+                                    </button>
+                                {% else %}
+                                    <button class="like-btn disabled" type="button" disabled aria-pressed="false" data-post-id="{{ post['id'] }}">
+                                        <svg class="heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                                        </svg>
+                                        <span class="like-count" id="like-count-{{ post['id'] }}">{{ post['like_count'] }}</span>
+                                    </button>
+                                {% endif %}
                                 <button class="comment-btn icon-only" type="button" data-post-id="{{ post['id'] }}" aria-label="Open comments">
                                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     <span class="comment-count" id="comment-count-{{ post['id'] }}">{{ post.get('comment_count', 0) }}</span>
@@ -77,7 +95,7 @@
     {% include 'comments_modal.html' %}
     <script src="{{ url_for('static', filename='comments.js') }}"></script>
     <script>
-    document.querySelectorAll('.like-btn').forEach(function(btn) {
+    document.querySelectorAll('.like-btn:not([disabled])').forEach(function(btn) {
         btn.addEventListener('click', function() {
             const postId = btn.getAttribute('data-post-id');
             const liked = btn.classList.contains('liked');
@@ -103,9 +121,15 @@
                 if (data.like_count !== undefined) {
                     // update count
                     document.getElementById('like-count-' + postId).textContent = data.like_count;
-                    // ensure final state matches server
-                    btn.classList.toggle('liked', data.liked || action === 'like');
-                    btn.setAttribute('aria-pressed', btn.classList.contains('liked') ? 'true' : 'false');
+                    // if server returned an error (e.g., cannot like own post), revert optimistic toggle
+                    if (data.error) {
+                        btn.classList.toggle('liked', liked);
+                        btn.setAttribute('aria-pressed', liked ? 'true' : 'false');
+                    } else {
+                        // ensure final state matches server
+                        btn.classList.toggle('liked', data.liked || action === 'like');
+                        btn.setAttribute('aria-pressed', btn.classList.contains('liked') ? 'true' : 'false');
+                    }
                 }
             })
             .catch(() => {
