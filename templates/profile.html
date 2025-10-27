@@ -108,6 +108,15 @@
             font-weight: 600;
             font-size: 1.01rem;
         }
+        .group-badge {
+            background: rgba(0,123,255,0.12);
+            color: #00bfff;
+            border: 1px solid rgba(0,123,255,0.18);
+            padding: 2px 8px;
+            font-size: 0.8rem;
+            border-radius: 999px;
+            display: inline-block;
+        }
         @media (max-width: 700px) {
             .profile-card, .posts-section {
                 max-width: 98vw;
@@ -146,12 +155,17 @@
                     <h2>Posts</h2>
                     {% if posts %}
                         {% for post in posts %}
-                        <div class="post-card">
-                            <div class="post-details">
-                                <strong>{{ post[1] }}</strong>
-                                <span class="date-time">{{ post[3] }}</span>
-                            </div>
-                            <p>{{ post[2] }}</p>
+                            <div class="post-card">
+                                <div class="post-details">
+                                    <div style="display:flex;align-items:center;gap:8px;">
+                                        <strong>{{ post[1] }}</strong>
+                                        {% if post[6] %}
+                                            <span class="group-badge" title="Posted to group: {{ post[6] }}">{{ post[6] }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <span class="date-time">{{ post[3] }}</span>
+                                </div>
+                                <p>{{ post[2] }}</p>
                             {% if session.get('username') and post[1] != session.get('username') %}
                                 <button class="like-btn" type="button" data-post-id="{{ post[0] }}" aria-pressed="false">
                                     <svg class="heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

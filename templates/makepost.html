@@ -15,6 +15,13 @@
                     <form action="/post" method="POST">
                         <label for="post" class="heading">Make a post:</label>
                         <textarea type="text" id="post" name="post" placeholder="Write your thoughts away..."></textarea>
+
+                        <div style="margin: 0.5em 0;">
+                            <label>Post visibility:</label>
+                            <label style="margin-left:1em;"><input type="radio" name="scope" value="friends" {% if scope != 'group' %}checked{% endif %}> Friends (Home)</label>
+                            <label style="margin-left:1em;"><input type="radio" name="scope" value="group" {% if scope == 'group' %}checked{% endif %}> School Group</label>
+                        </div>
+
                         <button type="submit" class="cta text-xl">Post</button>
                         <input type="hidden" name="username" value="{{ session['username'] }}">
                     </form>

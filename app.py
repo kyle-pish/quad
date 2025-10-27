@@ -64,10 +64,26 @@ def create_post_table():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT,
         post_content TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        group_name TEXT DEFAULT NULL
     )
     ''')
     conn.commit()
+    conn.close()
+
+
+def ensure_posts_group_column():
+    """Ensure the posts table has the group_name column (for existing DBs)."""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(posts)")
+    cols = [row[1] for row in cursor.fetchall()]
+    if 'group_name' not in cols:
+        try:
+            cursor.execute('ALTER TABLE posts ADD COLUMN group_name TEXT DEFAULT NULL')
+            conn.commit()
+        except sqlite3.DatabaseError:
+            pass
     conn.close()
 
 
@@ -188,7 +204,8 @@ def get_friends_posts(username):
     
     # Fetch posts for all usernames (friends + self)
     for username_to_fetch in usernames_to_fetch:
-        cursor.execute('SELECT * FROM posts WHERE username = ? COLLATE NOCASE', (username_to_fetch,))
+        # Exclude posts that belong to a group (group_name not empty) from the home/friends feed
+        cursor.execute('SELECT * FROM posts WHERE username = ? COLLATE NOCASE AND (group_name IS NULL OR group_name = "")', (username_to_fetch,))
         posts = cursor.fetchall()
         for post in posts:
             post_id = post[0]
@@ -326,6 +343,49 @@ def home():
     else:
         return redirect(url_for('login'))
 
+
+@app.route('/group')
+def group_page():
+    """Show the community page for the logged-in user's school/group."""
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    username = session['username']
+    conn = create_connection()
+    cursor = conn.cursor()
+    # get user's college/school
+    cursor.execute('SELECT college, id FROM users WHERE username = ? COLLATE NOCASE', (username,))
+    row = cursor.fetchone()
+    if not row or not row[0]:
+        conn.close()
+        return render_template('group.html', posts=[], group_name=None, message='No school associated with your account.')
+    group_name = row[0]
+    user_id = row[1]
+
+    # fetch posts that belong to this group
+    cursor.execute('SELECT * FROM posts WHERE group_name = ? ORDER BY timestamp DESC', (group_name,))
+    posts_raw = cursor.fetchall()
+    posts = []
+    for post in posts_raw:
+        post_id = post[0]
+        cursor.execute('SELECT COUNT(*) FROM likes WHERE post_id = ?', (post_id,))
+        like_count = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM comments WHERE post_id = ?', (post_id,))
+        comment_count = cursor.fetchone()[0]
+        cursor.execute('SELECT 1 FROM likes WHERE user_id = ? AND post_id = ?', (user_id, post_id))
+        liked = cursor.fetchone() is not None
+        posts.append({
+            'id': post[0],
+            'username': post[1],
+            'post_content': post[2],
+            'timestamp': post[3],
+            'like_count': like_count,
+            'comment_count': comment_count,
+            'liked': liked
+        })
+    conn.close()
+    # Reuse the home template so group pages display exactly like the home feed
+    return render_template('home.html', posts=posts, group_view=True, group_name=group_name)
+
 #@app.route('/profile/<username>', methods=['GET'])
 @app.route('/profile/<username>', methods=['GET'])
 def profile(username):
@@ -370,32 +430,44 @@ def profile(username):
                 if cursor.fetchone():
                     is_friend = True
             if user_data:
-                if is_friend or my_username == username:
+                # Determine viewer's and owner's college to decide whether to show group posts
+                cursor.execute('SELECT college FROM users WHERE username = ? COLLATE NOCASE', (my_username,))
+                viewer_college_row = cursor.fetchone()
+                viewer_college = viewer_college_row[0] if viewer_college_row else None
+                owner_college = user_data[5] if len(user_data) > 5 else None
+
+                # If friend, owner, or same-college viewer, allow group posts as well
+                if is_friend or my_username == username or (viewer_college and owner_college and viewer_college == owner_college):
                     cursor.execute('SELECT * FROM posts WHERE username = ? ORDER BY timestamp DESC', (user_data[2],))
-                    posts_raw = cursor.fetchall()
-                    posts = []
-                    for post in posts_raw:
-                        post_id = post[0]
-                        cursor.execute('SELECT COUNT(*) FROM likes WHERE post_id = ?', (post_id,))
-                        like_count = cursor.fetchone()[0]
-                        cursor.execute('SELECT COUNT(*) FROM comments WHERE post_id = ?', (post_id,))
-                        comment_count = cursor.fetchone()[0]
-                        posts.append((post[0], post[1], post[2], post[3], like_count))
-                    conn.close()
-                    # convert posts to include comment count
-                    posts_with_counts = []
-                    for p in posts:
-                        # p is (id, username, content, timestamp, like_count)
-                        cursor_conn = create_connection()
-                        cur = cursor_conn.cursor()
-                        cur.execute('SELECT COUNT(*) FROM comments WHERE post_id = ?', (p[0],))
-                        cc = cur.fetchone()[0]
-                        cursor_conn.close()
-                        posts_with_counts.append((p[0], p[1], p[2], p[3], p[4], cc))
-                    return render_template('profile.html', user=user_data, posts=posts_with_counts, friends=friends)
                 else:
-                    conn.close()
-                    return render_template('profile.html', user=user_data, posts=None, friends=friends, not_friends=True)
+                    # Exclude group posts when viewer isn't authorized
+                    cursor.execute('SELECT * FROM posts WHERE username = ? AND (group_name IS NULL OR group_name = "") ORDER BY timestamp DESC', (user_data[2],))
+
+                posts_raw = cursor.fetchall()
+                posts = []
+                for post in posts_raw:
+                    post_id = post[0]
+                    cursor.execute('SELECT COUNT(*) FROM likes WHERE post_id = ?', (post_id,))
+                    like_count = cursor.fetchone()[0]
+                    cursor.execute('SELECT COUNT(*) FROM comments WHERE post_id = ?', (post_id,))
+                    comment_count = cursor.fetchone()[0]
+                    # post tuple: (id, username, post_content, timestamp, group_name)
+                    group_name = post[4] if len(post) > 4 else None
+                    # store group_name alongside other values
+                    posts.append((post[0], post[1], post[2], post[3], like_count, group_name))
+                conn.close()
+                # convert posts to include comment count
+                posts_with_counts = []
+                for p in posts:
+                    # p is (id, username, content, timestamp, like_count, group_name)
+                    cursor_conn = create_connection()
+                    cur = cursor_conn.cursor()
+                    cur.execute('SELECT COUNT(*) FROM comments WHERE post_id = ?', (p[0],))
+                    cc = cur.fetchone()[0]
+                    cursor_conn.close()
+                    # final tuple: (id, username, content, timestamp, like_count, comment_count, group_name)
+                    posts_with_counts.append((p[0], p[1], p[2], p[3], p[4], cc, p[5]))
+                return render_template('profile.html', user=user_data, posts=posts_with_counts, friends=friends)
             else:
                 conn.close()
                 return "User data not found."
@@ -449,12 +521,14 @@ def search():
 
 @app.route('/makepost', methods=['GET'])
 def make_post():
-    return render_template('makepost.html')
+    scope = request.args.get('scope', 'friends')
+    return render_template('makepost.html', scope=scope)
 
 @app.route('/post', methods=['POST'])
 def create_post():
     post = request.form.get('post')
     username = request.form.get('username')
+    scope = request.form.get('scope')  # 'friends' or 'group'
     conn = create_connection()
     cursor = conn.cursor()
 
@@ -469,20 +543,36 @@ def create_post():
     print(username)
     print("post:")
     print(post)
+    # Determine whether this post should be a group post
+    group_name = None
+    if scope == 'group':
+        # look up user's college/school and set as group
+        cursor.execute('SELECT college FROM users WHERE username = ? COLLATE NOCASE', (username,))
+        row = cursor.fetchone()
+        if row and row[0]:
+            group_name = row[0]
+
     try:
-        cursor.execute('INSERT INTO posts (username, post_content) VALUES (?, ?)', 
-                        (username, post))
+        if group_name:
+            cursor.execute('INSERT INTO posts (username, post_content, group_name) VALUES (?, ?, ?)',
+                           (username, post, group_name))
+        else:
+            cursor.execute('INSERT INTO posts (username, post_content) VALUES (?, ?)',
+                           (username, post))
 
         conn.commit()
         conn.close()
 
-        all_posts = get_friends_posts(username)
+        # If this was a group post, send the user back to the group page so they see it
+        if group_name:
+            return redirect(url_for('group_page'))
 
+        all_posts = get_friends_posts(username)
         return render_template('home.html', posts=all_posts)
     except sqlite3.IntegrityError:
-            conn.rollback()
-            conn.close()
-            return "Post could not be posted at this time"
+        conn.rollback()
+        conn.close()
+        return "Post could not be posted at this time"
     
 
 
@@ -664,6 +754,11 @@ def like_post():
 if __name__ == '__main__':
     create_table()  # Create the table when the app starts
     create_post_table() # Create the table for the posts
+    # ensure legacy DBs get the new column for group posts
+    try:
+        ensure_posts_group_column()
+    except NameError:
+        pass
     create_friend_table()
     create_notifications_table()
     create_likes_table()
