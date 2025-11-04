@@ -8,10 +8,30 @@
     color: #fff;
     padding: .5em 1em;
     border-radius:10em;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
   }
 
   header a:hover {
     background: #fff;
+  }
+
+  /* small notification badge */
+  .notif-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.65rem;
+    line-height: 1;
+    padding: 0 5px;
+    border-radius: 999px;
+    min-width: 18px;
+    height: 18px;
+    box-sizing: border-box;
+    transform: translateY(-2px);
   }
 
   #logo {
@@ -64,8 +84,12 @@
     </a>
     <nav class="flex gap-7 items-center">
       <a href="/search">Search</a>
-      <a href="/group">Groups</a>
-      <a href="/notifications">Notifications</a>
+  <a href="/groups">Groups</a>
+      <a href="/notifications">Notifications
+        {% if unread_notifications and unread_notifications > 0 %}
+          <span class="notif-badge">{{ unread_notifications }}</span>
+        {% endif %}
+      </a>
       <!-- <a href="/friends">Friends</a> -->
       <a href="/makepost">Posts</a>
           <div style="position:relative;">

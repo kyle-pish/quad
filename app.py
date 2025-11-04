@@ -28,6 +28,29 @@ def create_connection():
     return conn
 
 
+@app.context_processor
+def inject_unread_notifications():
+    """Inject unread notification count into all templates as `unread_notifications`."""
+    try:
+        if 'username' not in session:
+            return {}
+        conn = create_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (session['username'],))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return {}
+        user_id = row[0]
+        cursor.execute('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0', (user_id,))
+        count = cursor.fetchone()[0] or 0
+        conn.close()
+        return {'unread_notifications': count}
+    except Exception:
+        # If anything fails, don't break template rendering
+        return {'unread_notifications': 0}
+
+
 '''
 create_table():
 creates a users table in the database if one does not exist
@@ -358,8 +381,11 @@ def group_page():
     if not row or not row[0]:
         conn.close()
         return render_template('group.html', posts=[], group_name=None, message='No school associated with your account.')
-    group_name = row[0]
+    default_group = row[0]
     user_id = row[1]
+
+    # allow overriding via query param (when navigating from groups list)
+    group_name = request.args.get('group') or default_group
 
     # fetch posts that belong to this group
     cursor.execute('SELECT * FROM posts WHERE group_name = ? ORDER BY timestamp DESC', (group_name,))
@@ -385,6 +411,46 @@ def group_page():
     conn.close()
     # Reuse the home template so group pages display exactly like the home feed
     return render_template('home.html', posts=posts, group_view=True, group_name=group_name)
+
+
+@app.route('/groups')
+def groups_page():
+    """Show a list of groups the current user belongs to."""
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    username = session['username']
+    conn = create_connection()
+    cursor = conn.cursor()
+
+    groups = []
+    # primary group: the user's college
+    cursor.execute('SELECT college FROM users WHERE username = ? COLLATE NOCASE', (username,))
+    row = cursor.fetchone()
+    if row and row[0]:
+        college = row[0]
+        # member count = users with same college
+        cursor.execute('SELECT COUNT(*) FROM users WHERE college = ?', (college,))
+        member_count = cursor.fetchone()[0] or 0
+        # post count = posts with this group_name
+        cursor.execute('SELECT COUNT(*) FROM posts WHERE group_name = ?', (college,))
+        post_count = cursor.fetchone()[0] or 0
+        groups.append({ 'name': college, 'description': f'Community for {college} students', 'member_count': member_count, 'post_count': post_count })
+
+    # also include any other distinct groups the user has posted to
+    cursor.execute('SELECT DISTINCT group_name FROM posts WHERE username = ? AND group_name IS NOT NULL AND group_name != ""', (username,))
+    for (gname,) in cursor.fetchall():
+        if not gname:
+            continue
+        if any(g['name'] == gname for g in groups):
+            continue
+        cursor.execute('SELECT COUNT(*) FROM users WHERE college = ?', (gname,))
+        member_count = cursor.fetchone()[0] or 0
+        cursor.execute('SELECT COUNT(*) FROM posts WHERE group_name = ?', (gname,))
+        post_count = cursor.fetchone()[0] or 0
+        groups.append({ 'name': gname, 'description': f'Community: {gname}', 'member_count': member_count, 'post_count': post_count })
+
+    conn.close()
+    return render_template('groups.html', groups=groups)
 
 #@app.route('/profile/<username>', methods=['GET'])
 @app.route('/profile/<username>', methods=['GET'])
@@ -639,6 +705,43 @@ def notifications():
         conn.close()
         return render_template('notifications.html', notifications=notifications)
     return redirect(url_for('login'))
+
+
+@app.route('/notifications/mark_read', methods=['POST'])
+def mark_notification_read():
+    """Mark a notification as read for the current user.
+
+    Expects form field `id` with the notification id.
+    """
+    if 'username' not in session:
+        return jsonify({'success': False, 'error': 'not_logged_in'}), 401
+    nid = request.form.get('id')
+    if not nid:
+        return jsonify({'success': False, 'error': 'missing_id'}), 400
+    try:
+        nid = int(nid)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'bad_id'}), 400
+
+    conn = create_connection()
+    cursor = conn.cursor()
+    # ensure the notification belongs to the current user
+    cursor.execute('SELECT user_id FROM notifications WHERE id = ?', (nid,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'error': 'not_found'}), 404
+    user_id = row[0]
+    cursor.execute('SELECT id FROM users WHERE username = ? COLLATE NOCASE', (session['username'],))
+    cur_row = cursor.fetchone()
+    if not cur_row or cur_row[0] != user_id:
+        conn.close()
+        return jsonify({'success': False, 'error': 'not_owner'}), 403
+
+    cursor.execute('UPDATE notifications SET is_read = 1 WHERE id = ?', (nid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
 
 @app.route('/check_username', methods=['POST'])
 def check_username():

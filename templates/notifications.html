@@ -6,25 +6,61 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='universal.css') }}">
     <style>
-    .notification-item.unread {
-        font-weight: bold;
+    /* Use the app's global background/color (do not override here) */
+    .notifications-container { max-width:900px; margin:2rem auto; padding:1rem }
+    h1 { margin-bottom:0.5rem }
+    .note-list { display:flex; flex-direction:column; gap:0.85rem; margin-top:1rem }
+    /* keep the list centered and narrower than full container */
+    .notifications-container .note-list { max-width:780px; margin-left:auto; margin-right:auto }
+    .notification-item {
+        display:flex; gap:12px; align-items:flex-start; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.12));
+        border:1px solid rgba(255,255,255,0.03); padding:12px; border-radius:12px;
+        transition:background .15s, transform .12s; cursor:pointer;
     }
+    .notification-item:hover{ transform:translateY(-3px) }
+    .notification-item.unread { box-shadow: 0 6px 24px rgba(2,6,23,0.6); border-left:4px solid #06b6d4 }
+    .note-icon { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff }
+    .note-icon.like { background:#ef4444 }
+    .note-icon.friend { background:#06b6d4 }
+    .note-icon.comment { background:#f59e0b }
+    .note-icon.other { background:#64748b }
+    .note-content { flex:1 }
+    .note-message { margin:0 }
+    .note-meta { margin-top:6px; color:#9fb0c8; font-size:0.9rem }
+    .note-actions { margin-left:12px; display:flex; gap:8px; align-items:center }
+    .btn-mark { background:transparent; border:1px solid rgba(255,255,255,0.06); color:#cfeafc; padding:6px 8px; border-radius:8px; font-size:0.9rem }
+    .empty { text-align:center; color:#8aa0b8; padding:3rem 1rem }
+    @media (max-width:560px){ .note-meta{ font-size:0.82rem } .note-icon{ width:38px;height:38px } }
     </style>
 </head>
 <body>
     {% include 'header.html' %}
     <main>
         <section>
-            <div class="container">
+            <div class="container notifications-container">
                 <h1>Notifications</h1>
                 {% if notifications %}
-                    <ul>
+                    <div class="note-list">
                         {% for note in notifications %}
-                            <li class="notification-item{% if not note[4] %} unread{% endif %}" style="margin-bottom:1em;">
-                                {{ note[3] }} <span style="color:#aaa;font-size:0.9em;">({{ note[5] }})</span>
-                            </li>
+                            {# note tuple: (id, user_id, type, message, is_read, timestamp) #}
+                            <div class="notification-item{% if not note[4] %} unread{% endif %}" data-id="{{ note[0] }}">
+                                <div class="note-icon {% if note[2]=='like' %}like{% elif note[2]=='friend' %}friend{% elif note[2]=='comment' %}comment{% else %}other{% endif %}">
+                                    {% if note[2]=='like' %}❤{% elif note[2]=='friend' %}👥{% elif note[2]=='comment' %}💬{% else %}🔔{% endif %}
+                                </div>
+                                <div class="note-content">
+                                    <p class="note-message">{{ note[3] }}</p>
+                                    <div class="note-meta">{{ note[5] }}</div>
+                                </div>
+                                <div class="note-actions">
+                                    {% if not note[4] %}
+                                        <button class="btn-mark" data-id="{{ note[0] }}">Mark read</button>
+                                    {% else %}
+                                        <span style="color:#7fb1c8;font-size:0.95rem">Read</span>
+                                    {% endif %}
+                                </div>
+                            </div>
                         {% endfor %}
-                    </ul>
+                    </div>
                 {% else %}
                     <p>No notifications.</p>
                 {% endif %}
@@ -34,3 +70,27 @@
     {% include 'footer.html' %}
 </body>
 </html>
+
+<script>
+function markRead(e, id){
+    e.stopPropagation();
+    fetch('/notifications/mark_read', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`id=${id}`})
+    .then(r=>r.json()).then(data=>{
+        if(data.success){
+            const el = document.querySelector(`.notification-item[data-id='${id}']`);
+            if(el){ el.classList.remove('unread'); const btn = el.querySelector('.btn-mark'); if(btn) btn.remove(); const s = document.createElement('span'); s.style.color='#7fb1c8'; s.style.fontSize='0.95rem'; s.textContent='Read'; el.querySelector('.note-actions').appendChild(s); }
+        }
+    }).catch(()=>{})
+}
+
+// Delegate click events for mark-read buttons
+document.addEventListener('click', function(e) {
+    const target = e.target;
+    if (target && target.classList && target.classList.contains('btn-mark')) {
+        const id = target.dataset.id;
+        if (id) {
+            markRead(e, id);
+        }
+    }
+});
+</script>

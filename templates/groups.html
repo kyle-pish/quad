@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Your Groups</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='universal.css') }}">
+    <style>
+        .groups-container { max-width:980px; margin:2.25rem auto; padding:0 1rem; }
+        .groups-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:0.5rem; }
+        .groups-header h1 { margin:0; font-size:1.6rem; color:#fff; }
+
+        .group-list { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:1rem; margin-top:1rem; }
+
+        .group-card {
+            position:relative;
+            background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.12));
+            border:1px solid rgba(255,255,255,0.03);
+            border-radius:14px;
+            padding:1rem;
+            color:#fff;
+            text-decoration:none;
+            display:block;
+            transition:transform .16s ease, box-shadow .16s ease;
+            overflow:hidden;
+        }
+        .group-card:hover{ transform:translateY(-6px); box-shadow:0 12px 40px rgba(0,0,0,0.45); }
+
+        .group-top { display:flex; gap:12px; align-items:center; }
+        .group-avatar { width:56px; height:56px; border-radius:12px; flex:0 0 56px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.25rem; color:#fff; }
+        .group-info { flex:1 1 auto; min-width:0 }
+        .group-info h3 { margin:0 0 4px 0; font-size:1.1rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+        .group-info p { margin:0; color:#bdbdbd; font-size:0.9rem; line-height:1.2; max-height:2.4em; overflow:hidden; text-overflow:ellipsis }
+
+        .group-footer { display:flex; justify-content:space-between; align-items:center; margin-top:12px; gap:8px }
+        .stats { display:flex; gap:8px; align-items:center }
+        .stat { background:rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; color:#ddd; font-size:0.85rem }
+
+        .open-btn { background:transparent; border:1px solid rgba(255,255,255,0.06); color:#fff; padding:6px 10px; border-radius:8px; font-size:0.95rem; text-decoration:none }
+        .open-btn:hover{ background:rgba(255,255,255,0.02) }
+
+        .empty { text-align:center; color:#888; padding:3rem 1rem; }
+
+        /* small screens */
+        @media (max-width:520px){
+            .group-avatar{ width:48px;height:48px;border-radius:10px }
+            .group-info h3{ font-size:1rem }
+        }
+    </style>
+</head>
+<body>
+    {% include 'header.html' %}
+    <main>
+        <div class="groups-container">
+            <h1>Your Groups</h1>
+            {% if groups and groups|length > 0 %}
+                <div class="group-list">
+                    {% for g in groups %}
+                        <a class="group-card" href="{{ url_for('group_page') }}{% if g.name %}?group={{ g.name }}{% endif %}">
+                            <div class="group-top">
+                                <div class="group-avatar" style="background:linear-gradient(135deg, #4f46e5, #06b6d4)">
+                                    {{ g.name[0]|upper }}
+                                </div>
+                                <div class="group-info">
+                                    <h3 title="{{ g.name }}">{{ g.name }}</h3>
+                                    <p title="{{ g.description }}">{{ g.description }}</p>
+                                </div>
+                            </div>
+                            <div class="group-footer">
+                                <div class="stats">
+                                    <div class="stat">Members: {{ g.member_count }}</div>
+                                    <div class="stat">Posts: {{ g.post_count }}</div>
+                                </div>
+                                <div>
+                                    <span class="open-btn">Open →</span>
+                                </div>
+                            </div>
+                        </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty">
+                    <img src="/static/imgs/file.svg" width="120" alt="No groups">
+                    <p>You aren't part of any groups yet.</p>
+                </div>
+            {% endif %}
+        </div>
+    </main>
+    {% include 'footer.html' %}
+</body>
+</html>
